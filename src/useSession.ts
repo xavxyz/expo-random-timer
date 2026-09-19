@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+import { keepsSessionRunning } from './appLifecycle';
 import { startSession, type Session, type SessionSnapshot } from './sessionClock';
 
 const POLL_MS = 250;
@@ -25,6 +27,20 @@ export function useSession() {
     const poll = setInterval(() => setSnapshot(session.advanceTo(Date.now())), POLL_MS);
     return () => clearInterval(poll);
   }, [session]);
+
+  // Leaving the foreground stops the session silently rather than letting it
+  // time without being able to ring.
+  useEffect(() => {
+    if (!session) return;
+    if (!keepsSessionRunning(AppState.currentState)) {
+      stop();
+      return;
+    }
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (!keepsSessionRunning(state)) stop();
+    });
+    return () => subscription.remove();
+  }, [session, stop]);
 
   return { snapshot, start, stop };
 }
