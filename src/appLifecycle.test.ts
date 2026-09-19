@@ -1,6 +1,6 @@
-import { keepsSessionRunning } from './sessionGuards';
+import { keepsSessionRunning } from './appLifecycle';
 
-describe('session guards', () => {
+describe('app lifecycle', () => {
   it('keeps the session running while the app is active', () => {
     expect(keepsSessionRunning('active')).toBe(true);
   });
