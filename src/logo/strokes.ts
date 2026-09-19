@@ -24,7 +24,7 @@ export const CIRCLE: Stroke = {
 
 // Up the right side from the bottom-right corner, a sharp turn at the apex, then
 // down the left side, going dry with streaks on its outer edge.
-export const TRIANGLE_SIDES: Stroke = {
+export const TRIANGLE_APEX_STROKE: Stroke = {
   centreLine: [
     [[81.6, 72.4], [80.3, 70.2], [79, 67.9], [77.6, 65.6], [76.3, 63.3], [74.9, 61], [73.5, 58.6], [72.2, 56.3], [70.8, 54], [69.5, 51.7], [68.1, 49.4], [66.7, 47.1], [65.4, 44.7], [64, 42.4], [62.6, 40.1], [61.3, 37.8], [59.9, 35.5], [58.5, 33.2], [57.2, 30.8], [55.8, 28.5], [54.5, 26.2], [53.1, 23.9], [51.8, 21.6], [50.3, 19.4]],
     [[50.3, 19.4], [49, 21.6], [47.8, 24], [46.5, 26.3], [45.1, 28.6], [43.8, 30.9], [42.4, 33.3], [41.1, 35.6], [39.7, 37.9], [38.4, 40.2], [37.1, 42.5], [35.7, 44.9], [34.4, 47.2], [33, 49.5], [31.8, 51.9], [30.8, 54.4], [29.6, 56.8], [28.2, 59.1], [27.4, 61.7], [26.2, 64.1], [25.2, 66.6], [24.2, 69.1], [23.4, 70.4]],
@@ -38,7 +38,7 @@ export const TRIANGLE_SIDES: Stroke = {
 
 // After a brush lift, right to left: heavy from the bottom-right corner, going dry,
 // ending in a hairline past the bottom-left corner.
-export const TRIANGLE_BASE: Stroke = {
+export const TRIANGLE_BASE_STROKE: Stroke = {
   centreLine: [
     [[80.6, 70.2], [78.2, 70.1], [75.5, 69.9], [72.8, 69.8], [70.1, 69.8], [67.5, 69.8], [64.8, 69.8], [62.1, 69.8], [59.4, 69.8], [56.7, 69.8], [54.1, 68.5], [51.4, 68.4], [48.7, 68.5], [46, 68.5], [43.4, 67.9], [40.7, 67.9], [38, 67.5], [35.3, 67.6], [32.6, 67.6], [29.9, 67.6], [27.2, 67.6], [24.6, 67.5], [21.9, 67.7], [21.2, 67.6]],
   ],
@@ -50,7 +50,7 @@ export const TRIANGLE_BASE: Stroke = {
 };
 
 /** The triangle's strokes, in drawing order, with a brush lift between them. */
-export const TRIANGLE_STROKES: Stroke[] = [TRIANGLE_SIDES, TRIANGLE_BASE];
+export const TRIANGLE_STROKES: Stroke[] = [TRIANGLE_APEX_STROKE, TRIANGLE_BASE_STROKE];
 
 /** The whole mark's strokes, in drawing order. */
 export const MARK: Stroke[] = [CIRCLE, ...TRIANGLE_STROKES];

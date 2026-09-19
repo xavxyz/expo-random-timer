@@ -65,13 +65,19 @@ describe('an inked stroke', () => {
     expect(inkStroke(evenStroke([[[0, 0], [10, 0]]])).inkUpTo(0)).toBe('');
   });
 
+  it('inks no further than the whole stroke', () => {
+    const inked = inkStroke(evenStroke([[[0, 0], [10, 0]]]));
+    expect(inked.inkUpTo(1.5)).toBe(inked.inkUpTo(1));
+    expect(inked.inkUpTo(-0.5)).toBe('');
+  });
+
   it('joins the points of a run with a smooth curve rather than straight lines', () => {
     // A round brush movement, measured every 45 degrees.
-    const round = Array.from({ length: 9 }, (_, i): Point => {
+    const onCircle = Array.from({ length: 9 }, (_, i): Point => {
       const angle = (i * Math.PI) / 4;
       return [10 * Math.cos(angle), 10 * Math.sin(angle)];
     });
-    const radii = outlinePoints(inkStroke(evenStroke([round])).inkUpTo(1)).map(([x, y]) => Math.hypot(x, y));
+    const radii = outlinePoints(inkStroke(evenStroke([onCircle])).inkUpTo(1)).map(([x, y]) => Math.hypot(x, y));
     expect(Math.min(...radii)).toBeGreaterThan(8.8);
     expect(Math.max(...radii)).toBeLessThan(11.2);
   });

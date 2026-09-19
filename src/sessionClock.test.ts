@@ -1,10 +1,18 @@
-import { seededRandom } from './seededRandom';
-import { formatElapsed, startSession } from './sessionClock';
+import { formatElapsed, startSession, type Random } from './sessionClock';
 
 const T0 = 1_700_000_000_000;
 const lowest = () => 0;
 // Math.random() never returns 1; this is as high as it gets.
 const highest = () => 0.9999999999999999;
+
+/** Park–Miller LCG: a deterministic stand-in for `Math.random`. */
+function seededRandom(seed: number): Random {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
 
 // Returns the given values in order, then repeats the last one.
 function sequence(...values: number[]) {

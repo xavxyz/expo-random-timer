@@ -5,8 +5,8 @@
 //
 // Each stroke is scanned across, every pixel or so along a guide: a fitted
 // circle, or lines fitted to the triangle's sides. Across the stroke, the ink
-// splits into runs. The main run (the stroke's body) is the one along the
-// stroke's steady edge (its keel); any other run is a dry-brush streak.
+// splits into spans. The main span (the stroke's body) is the one along the
+// stroke's steady edge (its keel); any other span is a dry-brush streak.
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 
@@ -70,11 +70,11 @@ const size = image.width;
 /** Bilinear darkness at a point between pixel centres. */
 function darknessAt(x, y) {
   const [x0, y0] = [Math.floor(x), Math.floor(y)];
-  const at = (px, py) =>
+  const pixel = (px, py) =>
     px < 0 || py < 0 || px >= image.width || py >= image.height ? 0 : image.darkness[py * image.width + px];
   const [fx, fy] = [x - x0, y - y0];
   return (
-    at(x0, y0) * (1 - fx) * (1 - fy) + at(x0 + 1, y0) * fx * (1 - fy) + at(x0, y0 + 1) * (1 - fx) * fy + at(x0 + 1, y0 + 1) * fx * fy
+    pixel(x0, y0) * (1 - fx) * (1 - fy) + pixel(x0 + 1, y0) * fx * (1 - fy) + pixel(x0, y0 + 1) * (1 - fx) * fy + pixel(x0 + 1, y0 + 1) * fx * fy
   );
 }
 
@@ -82,20 +82,22 @@ function darknessAt(x, y) {
 
 const ACROSS_STEP = 0.25;
 
-/** Runs of ink across the stroke at `point`, as [start, end] offsets along `normal` within `band`. */
-function runsAcross([x, y], [nx, ny], [low, high]) {
-  const runs = [];
+const distance = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+/** Spans of ink across the stroke at `point`, as [start, end] offsets along `normal` within `band`. */
+function spansAcross([x, y], [nx, ny], [low, high]) {
+  const spans = [];
   let start = null;
   for (let offset = low; offset <= high + 1e-9; offset += ACROSS_STEP) {
     const inked = darknessAt(x + nx * offset, y + ny * offset) > 0.5;
     if (inked && start === null) start = offset;
     if (!inked && start !== null) {
-      runs.push([start, offset - ACROSS_STEP]);
+      spans.push([start, offset - ACROSS_STEP]);
       start = null;
     }
   }
-  if (start !== null) runs.push([start, high]);
-  return runs;
+  if (start !== null) spans.push([start, high]);
+  return spans;
 }
 
 /**
@@ -111,16 +113,16 @@ function scanStroke(guide, { band, keel, occluded = [], crossed = [] }) {
   const keelEdge = ([start, end]) => (keel > 0 ? end : start);
   let [lastKeel, lastWidth] = [null, Infinity];
   const scans = guide.map(({ point, normal }, i) => {
-    const runs = runsAcross(point, normal, band);
-    if (within(occluded, i) || runs.length === 0) return { body: null, others: [] };
-    // The body is the run along the keel: the keel-most one at first, then the one
+    const spans = spansAcross(point, normal, band);
+    if (within(occluded, i) || spans.length === 0) return { body: null, others: [] };
+    // The body is the span along the keel: the keel-most one at first, then the one
     // that carries on the keel, which runs steadily from sample to sample.
-    const byKeel = [...runs].sort((a, b) =>
+    const byKeel = [...spans].sort((a, b) =>
       lastKeel === null ? keel * (keelEdge(b) - keelEdge(a)) : Math.abs(keelEdge(a) - lastKeel) - Math.abs(keelEdge(b) - lastKeel),
     );
     const body = byKeel[0];
     const width = body[1] - body[0] + ACROSS_STEP;
-    const others = runs.filter((run) => run !== body);
+    const others = spans.filter((span) => span !== body);
     // A body cut short by the edge of the band, or suddenly wider, is merged with another stroke.
     if (body[0] <= band[0] || body[1] >= band[1]) return { body: null, others: [] };
     if (within(crossed, i)) return { body: width <= lastWidth + 1 ? body : null, others: [] };
@@ -131,10 +133,10 @@ function scanStroke(guide, { band, keel, occluded = [], crossed = [] }) {
   const centre = fillGaps(scans.map(({ body }) => (body ? (body[0] + body[1]) / 2 : null)));
   const width = fillGaps(scans.map(({ body }) => (body ? body[1] - body[0] + ACROSS_STEP : null)));
   const points = guide.map(({ point: [x, y], normal: [nx, ny] }, i) => [x + nx * centre[i], y + ny * centre[i]]);
-  const streakRuns = scans.map(({ others }, i) =>
+  const streakSpans = scans.map(({ others }, i) =>
     others.map(([a, b]) => ({ offset: (a + b) / 2 - centre[i], width: b - a + ACROSS_STEP })),
   );
-  return { points, centre, width, streakRuns };
+  return { points, centre, width, streakSpans };
 }
 
 function fillGaps(values) {
@@ -149,27 +151,34 @@ function fillGaps(values) {
   });
 }
 
-/** Joins streak runs sample to sample into streaks, as [from, to] sample indices. */
-function trackStreaks(streakRuns, { minSamples = 3, maxJump = 2 } = {}) {
+/** Fewest samples a streak must span to count, so specks of ink aren't streaks. */
+const MIN_STREAK_SAMPLES = 3;
+/** Furthest a streak's offset may move from one sample to the next. */
+const MAX_STREAK_JUMP = 2;
+
+/** Joins streak spans sample to sample into streaks, as [from, to] sample indices. */
+function trackStreaks(streakSpans) {
   const open = [];
   const done = [];
-  streakRuns.forEach((runs, i) => {
-    for (const run of runs) {
-      const track = open.find((t) => t.last === i - 1 && Math.abs(t.runs[t.runs.length - 1].offset - run.offset) <= maxJump);
+  streakSpans.forEach((spans, i) => {
+    for (const span of spans) {
+      const track = open.find(
+        (t) => t.last === i - 1 && Math.abs(t.spans[t.spans.length - 1].offset - span.offset) <= MAX_STREAK_JUMP,
+      );
       if (track) {
-        track.runs.push(run);
+        track.spans.push(span);
         track.last = i;
-      } else open.push({ first: i, last: i, runs: [run] });
+      } else open.push({ first: i, last: i, spans: [span] });
     }
     for (const track of open.filter((t) => t.last < i)) done.push(...open.splice(open.indexOf(track), 1));
   });
   return [...done, ...open]
-    .filter((track) => track.runs.length >= minSamples)
-    .map(({ first, last, runs }) => ({
+    .filter((track) => track.spans.length >= MIN_STREAK_SAMPLES)
+    .map(({ first, last, spans }) => ({
       first,
       last,
-      offset: median(runs.map((r) => r.offset)),
-      width: Math.max(...runs.map((r) => r.width)),
+      offset: median(spans.map((s) => s.offset)),
+      width: Math.max(...spans.map((s) => s.width)),
     }));
 }
 
@@ -241,7 +250,7 @@ const ALONG_STEP = 1;
 
 /** Samples every ALONG_STEP along a straight line, from `from` to `to`. */
 function lineGuide(from, to) {
-  const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  const length = distance(from, to);
   const [ux, uy] = [(to[0] - from[0]) / length, (to[1] - from[1]) / length];
   const steps = Math.round(length / ALONG_STEP);
   return Array.from({ length: steps + 1 }, (_, i) => ({
@@ -298,12 +307,16 @@ const ring = fitCircle(inkPoints);
 const CIRCLE_BAND = [-0.12 * ring.radius, 0.09 * ring.radius];
 const DEG_STEP = 1;
 
+/** Spans of ink across the circle at an angle, from outside in. */
+const circleSpansAt = (deg) => {
+  const [{ point, normal }] = arcGuide(ring, deg, deg, DEG_STEP);
+  return spansAcross(point, normal, CIRCLE_BAND);
+};
+
 // Where the brush sets down: after the hairline down the right side, the first
 // angle where the stroke is heavy again.
 const circleWidthAt = (deg) => {
-  const [{ point, normal }] = arcGuide(ring, deg, deg, DEG_STEP);
-  const runs = runsAcross(point, normal, CIRCLE_BAND);
-  const inner = runs[runs.length - 1];
+  const inner = circleSpansAt(deg).at(-1);
   return inner ? inner[1] - inner[0] : 0;
 };
 let startDeg = -60;
@@ -311,11 +324,7 @@ while (circleWidthAt(startDeg) > 0.02 * ring.radius || circleWidthAt(startDeg + 
 
 // The stroke ends as a hairline over its own start, with a few dry streaks just
 // outside the circle: it ends with the last of them.
-const outerStreaksAt = (deg) => {
-  const [{ point, normal }] = arcGuide(ring, deg, deg, DEG_STEP);
-  const runs = runsAcross(point, normal, CIRCLE_BAND);
-  return runs.length > 1;
-};
+const outerStreaksAt = (deg) => circleSpansAt(deg).length > 1;
 let endDeg = startDeg + 360;
 for (let deg = startDeg; deg < startDeg + 45; deg += DEG_STEP) if (outerStreaksAt(deg)) endDeg = deg + 360 + DEG_STEP;
 
@@ -340,12 +349,12 @@ const circle = {
     i < tailFrom ? w : circleScan.width[lastHairline] * (1 - (i - tailFrom + 1) / (tailLength + 1)),
   ),
   // Streaks outside the circle where the stroke starts belong to its tail, beside its hairline.
-  streakRuns: circleScan.streakRuns.map((runs, i) =>
+  streakSpans: circleScan.streakSpans.map((spans, i) =>
     i < tailFrom
       ? i < tailLength
         ? []
-        : runs
-      : runs.map((run) => ({ ...run, offset: run.offset + circleScan.centre[i] - circleScan.centre[lastHairline] })),
+        : spans
+      : spans.map((span) => ({ ...span, offset: span.offset + circleScan.centre[i] - circleScan.centre[lastHairline] })),
   ),
 };
 
@@ -354,7 +363,7 @@ const circle = {
 // Rough corners, as fractions of the image, only to know where to look: the
 // sides are then fitted to the ink.
 const ROUGH = { bottomRight: [0.83, 0.7], apex: [0.51, 0.16], bottomLeft: [0.24, 0.7] };
-const at = ([fx, fy]) => [fx * size, fy * size];
+const inImage = ([fx, fy]) => [fx * size, fy * size];
 const TRIANGLE_BAND = [-0.07 * size, 0.07 * size];
 
 /** Fits a line to the body's centre over the clean middle of a rough guide. */
@@ -362,9 +371,9 @@ function fitSide(from, to, keel) {
   const scan = scanStroke(lineGuide(from, to), { band: TRIANGLE_BAND, keel, occluded: [[0, 0.2], [0.75, 1]] });
   return fitLine(scan.points.slice(Math.round(scan.points.length * 0.2), Math.round(scan.points.length * 0.75)));
 }
-const rightSide = fitSide(at(ROUGH.bottomRight), at(ROUGH.apex), -1);
-const leftSide = fitSide(at(ROUGH.apex), at(ROUGH.bottomLeft), -1);
-const base = fitSide(at(ROUGH.bottomRight), at(ROUGH.bottomLeft), 1);
+const rightSide = fitSide(inImage(ROUGH.bottomRight), inImage(ROUGH.apex), -1);
+const leftSide = fitSide(inImage(ROUGH.apex), inImage(ROUGH.bottomLeft), -1);
+const base = fitSide(inImage(ROUGH.bottomRight), inImage(ROUGH.bottomLeft), 1);
 
 // Near its corners, a side runs into the circle and the other sides.
 const CORNER = 0.07 * size;
@@ -383,44 +392,49 @@ const fractionAlong = (from, to, point) =>
   ((point[0] - from[0]) * (to[0] - from[0]) + (point[1] - from[1]) * (to[1] - from[1])) / ((to[0] - from[0]) ** 2 + (to[1] - from[1]) ** 2);
 const nearCorner = (from, to, corner, reach = CORNER) => {
   const f = fractionAlong(from, to, corner);
-  const margin = reach / Math.hypot(to[0] - from[0], to[1] - from[1]);
+  const margin = reach / distance(from, to);
   return [f - margin, f + margin];
 };
 // The sides set down a little past the corner, filling it out to the circle.
 const sidesStart = [bottomRight[0] - towards(bottomRight, apex)[0] * CORNER / 4, bottomRight[1] - towards(bottomRight, apex)[1] * CORNER / 4];
 const baseStart = bottomRight;
 
-const rightScan = scanStroke(lineGuide(sidesStart, apex), {
-  band: TRIANGLE_BAND,
-  keel: -1,
-  occluded: [nearCorner(sidesStart, apex, bottomRight), nearCorner(sidesStart, apex, apex)],
-});
-const leftScan = scanStroke(lineGuide(apex, leftEnd), {
-  band: TRIANGLE_BAND,
-  keel: -1,
-  occluded: [nearCorner(apex, leftEnd, apex)],
+/**
+ * Scans the triangle's stroke from `from` to `to`. Near the `occluded` corners
+ * another stroke hides it; near the `crossed` ones, as [corner, reach], a thin
+ * one crosses it.
+ */
+function scanTriangle(from, to, keel, { occluded = [], crossed = [] }) {
+  return scanStroke(lineGuide(from, to), {
+    band: TRIANGLE_BAND,
+    keel,
+    occluded: occluded.map((corner) => nearCorner(from, to, corner)),
+    crossed: crossed.map(([corner, reach]) => nearCorner(from, to, corner, reach)),
+  });
+}
+const rightScan = scanTriangle(sidesStart, apex, -1, { occluded: [bottomRight, apex] });
+const leftScan = scanTriangle(apex, leftEnd, -1, {
+  occluded: [apex],
   // At the bottom left, only the base's hairline and the side's dry end cross.
-  crossed: [nearCorner(apex, leftEnd, bottomLeftCrossing, CORNER / 2)],
+  crossed: [[bottomLeftCrossing, CORNER / 2]],
 });
-const baseScan = scanStroke(lineGuide(baseStart, baseEnd), {
-  band: TRIANGLE_BAND,
-  keel: 1,
-  occluded: [nearCorner(baseStart, baseEnd, bottomRight)],
+const baseScan = scanTriangle(baseStart, baseEnd, 1, {
+  occluded: [bottomRight],
   // The heavier side reaches further across the base.
-  crossed: [nearCorner(baseStart, baseEnd, bottomLeftCrossing)],
+  crossed: [[bottomLeftCrossing, CORNER]],
 });
 
 // --- Printing -----------------------------------------------------------------
 
 const SCALE = 100 / size;
 const toLogo = ([x, y]) => [(x - ring.centre[0]) * SCALE + 50, (y - ring.centre[1]) * SCALE + 50];
-const round = (value, digits = 1) => Number(value.toFixed(digits));
+const roundTo = (value, digits = 1) => Number(value.toFixed(digits));
 
 /** Distances along a polyline, as fractions of its length. */
 function fractions(points) {
-  const at = [0];
-  for (let i = 1; i < points.length; i++) at.push(at[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
-  return at.map((a) => a / at[at.length - 1]);
+  const distances = [0];
+  for (let i = 1; i < points.length; i++) distances.push(distances[i - 1] + distance(points[i - 1], points[i]));
+  return distances.map((d) => d / distances[distances.length - 1]);
 }
 
 /** Drops profile points that a straight line through their neighbours already gives, within `tolerance`. */
@@ -437,14 +451,15 @@ function simplify(profile, tolerance) {
 }
 
 /**
- * Turns scans of a stroke's runs (joined at sharp turns) into its data: the
- * centre line every `every` samples, its width profile and its streaks.
+ * Turns a stroke's scans, one per run of its centre line (joined at sharp
+ * turns), into its data: the centre line every `every` samples, its width
+ * profile and its streaks.
  */
-function strokeData(runs, { every, minStreakSamples = 3 }) {
-  const smoothRuns = runs.map(({ points, width, streakRuns }) => ({
+function strokeData(scans, every) {
+  const smoothRuns = scans.map(({ points, width, streakSpans }) => ({
     points: [0, 1].map((k) => smooth(points.map((p) => p[k]), 2)).reduce((xs, ys) => xs.map((x, i) => [x, ys[i]])),
     width: smooth(width, 1),
-    streakRuns,
+    streakSpans,
   }));
   // Each run starts exactly where the previous one ends, at the sharp turn between them.
   for (let r = 1; r < smoothRuns.length; r++) {
@@ -456,19 +471,19 @@ function strokeData(runs, { every, minStreakSamples = 3 }) {
   const allPoints = smoothRuns.flatMap(({ points }, r) => (r === 0 ? points : points.slice(1)));
   const along = fractions(allPoints);
   const width = smoothRuns.flatMap(({ width }, r) => (r === 0 ? width : width.slice(1)));
-  const streakRuns = smoothRuns.flatMap(({ streakRuns }, r) => (r === 0 ? streakRuns : streakRuns.slice(1)));
+  const streakSpans = smoothRuns.flatMap(({ streakSpans }, r) => (r === 0 ? streakSpans : streakSpans.slice(1)));
   const centreLine = smoothRuns.map(({ points }) =>
-    points.filter((_, i) => i % every === 0 || i === points.length - 1).map((p) => toLogo(p).map((v) => round(v))),
+    points.filter((_, i) => i % every === 0 || i === points.length - 1).map((p) => toLogo(p).map((v) => roundTo(v))),
   );
-  const streaks = trackStreaks(streakRuns, { minSamples: minStreakSamples }).map(({ first, last, offset, width }) => ({
-    from: round(along[first], 3),
-    to: round(along[Math.min(along.length - 1, last + 1)], 3),
-    offset: round(offset * SCALE, 2),
-    width: round(width * SCALE, 2),
+  const streaks = trackStreaks(streakSpans).map(({ first, last, offset, width }) => ({
+    from: roundTo(along[first], 3),
+    to: roundTo(along[Math.min(along.length - 1, last + 1)], 3),
+    offset: roundTo(offset * SCALE, 2),
+    width: roundTo(width * SCALE, 2),
   }));
   return {
     centreLine,
-    width: simplify(width.map((w, i) => [along[i], w * SCALE]), 0.15).map(([p, w]) => [round(p, 3), round(w, 2)]),
+    width: simplify(width.map((w, i) => [along[i], w * SCALE]), 0.15).map(([p, w]) => [roundTo(p, 3), roundTo(w, 2)]),
     dryBrush: streaks.sort((a, b) => a.from - b.from),
   };
 }
@@ -486,14 +501,14 @@ ${dryBrush.map((s) => `    { from: ${s.from}, to: ${s.to}, offset: ${s.offset}, 
 
 /** Centre of the circle inscribed in the triangle (its offset edges share it), where the round number sits. */
 function incentre(a, b, c) {
-  const [la, lb, lc] = [Math.hypot(b[0] - c[0], b[1] - c[1]), Math.hypot(a[0] - c[0], a[1] - c[1]), Math.hypot(a[0] - b[0], a[1] - b[1])];
+  const [la, lb, lc] = [distance(b, c), distance(a, c), distance(a, b)];
   const sum = la + lb + lc;
   return [0, 1].map((k) => (la * a[k] + lb * b[k] + lc * c[k]) / sum);
 }
-const triangleCentre = toLogo(incentre(apex, bottomRight, bottomLeftCrossing)).map((v) => round(v));
+const triangleCentre = toLogo(incentre(apex, bottomRight, bottomLeftCrossing)).map((v) => roundTo(v));
 
-const point = (p) => p.map((v) => round(v)).join(', ');
-console.error(`circle: centre ${point(ring.centre)}, radius ${round(ring.radius)}, from ${startDeg}° to ${endDeg}°`);
+const point = (p) => p.map((v) => roundTo(v)).join(', ');
+console.error(`circle: centre ${point(ring.centre)}, radius ${roundTo(ring.radius)}, from ${startDeg}° to ${endDeg}°`);
 console.error(`triangle: apex ${point(apex)}, bottom right ${point(bottomRight)}`);
 console.error(`ends: left side ${point(leftEnd)}, base ${point(baseEnd)}`);
 console.log(`/**
@@ -513,28 +528,28 @@ ${[
       "// heavy by about four o'clock. It goes dry at about one o'clock and ends as a",
       '// hairline over its own start, with dry streaks outside the circle.',
     ].join('\n'),
-    strokeData([circle], { every: 6 }),
+    strokeData([circle], 6),
   ),
   format(
-    'TRIANGLE_SIDES',
+    'TRIANGLE_APEX_STROKE',
     [
       '// Up the right side from the bottom-right corner, a sharp turn at the apex, then',
       '// down the left side, going dry with streaks on its outer edge.',
     ].join('\n'),
-    strokeData([rightScan, leftScan], { every: 12 }),
+    strokeData([rightScan, leftScan], 12),
   ),
   format(
-    'TRIANGLE_BASE',
+    'TRIANGLE_BASE_STROKE',
     [
       '// After a brush lift, right to left: heavy from the bottom-right corner, going dry,',
       '// ending in a hairline past the bottom-left corner.',
     ].join('\n'),
-    strokeData([baseScan], { every: 12 }),
+    strokeData([baseScan], 12),
   ),
 ].join('\n\n')}
 
 /** The triangle's strokes, in drawing order, with a brush lift between them. */
-export const TRIANGLE_STROKES: Stroke[] = [TRIANGLE_SIDES, TRIANGLE_BASE];
+export const TRIANGLE_STROKES: Stroke[] = [TRIANGLE_APEX_STROKE, TRIANGLE_BASE_STROKE];
 
 /** The whole mark's strokes, in drawing order. */
 export const MARK: Stroke[] = [CIRCLE, ...TRIANGLE_STROKES];
