@@ -5,17 +5,18 @@
 import { writeFileSync } from 'node:fs';
 
 const SAMPLE_RATE = 44100;
-const DURATION_S = 2.5;
-const FUNDAMENTAL_HZ = 528;
-const PEAK = 0.45; // soft: well below full scale
-const ATTACK_S = 0.006;
+const DURATION_S = 1.2;
+const FUNDAMENTAL_HZ = 1175; // D6: high enough to cut through a room
+const PEAK = 0.7;
+const ATTACK_S = 0.002; // near-instant strike
 
 // [frequency ratio, amplitude, decay time constant in seconds]
 const PARTIALS = [
-  [1, 1, 0.9],
-  [2.01, 0.35, 0.55],
-  [2.76, 0.18, 0.4],
-  [5.4, 0.06, 0.2],
+  [1, 1, 0.35],
+  [2.01, 0.55, 0.22],
+  [2.76, 0.4, 0.16],
+  [4.07, 0.25, 0.1],
+  [5.4, 0.15, 0.06],
 ];
 
 const n = Math.floor(SAMPLE_RATE * DURATION_S);
@@ -23,8 +24,8 @@ const samples = new Float64Array(n);
 for (let i = 0; i < n; i++) {
   const t = i / SAMPLE_RATE;
   const attack = Math.min(1, t / ATTACK_S);
-  // taper the last 100 ms to exact silence
-  const tail = Math.min(1, (DURATION_S - t) / 0.1);
+  // taper the last 50 ms to exact silence
+  const tail = Math.min(1, (DURATION_S - t) / 0.05);
   let v = 0;
   for (const [ratio, amp, tau] of PARTIALS) {
     v += amp * Math.exp(-t / tau) * Math.sin(2 * Math.PI * FUNDAMENTAL_HZ * ratio * t);
