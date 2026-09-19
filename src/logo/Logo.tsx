@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
 import Svg, { Path, Text } from 'react-native-svg';
 import { INK } from '../palette';
+import { holdProgress } from '../screenGesture';
+import type { Timestamp } from '../sessionClock';
 import { inkStroke } from './brush';
 import { CIRCLE, MARK, TRIANGLE_CENTRE } from './strokes';
 
@@ -18,18 +21,16 @@ type LogoProps = {
   size: number;
   /** Shown inside the triangle; the triangle is empty when null. */
   round: number | null;
-  /**
-   * How much of the circle's stroke the hold trace lights up, from its start in
-   * its drawing direction: 0 for none, 1 for the whole stroke.
-   */
-  traced: number;
+  /** When the hold to stop under way began, for the hold trace; null when there's none. */
+  heldSince: Timestamp | null;
 };
 
-export function Logo({ size, round, traced }: LogoProps) {
+export function Logo({ size, round, heldSince }: LogoProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       <Path d={MARK_PATH} fill={INK} opacity={LOGO_OPACITY} />
-      {traced > 0 && <Path d={INKED_CIRCLE.inkUpTo(traced)} fill={INK} />}
+      {/* Keyed, so each hold traces from nothing. */}
+      {heldSince != null && <HoldTrace key={heldSince} heldSince={heldSince} />}
       {round != null && (
         <Text
           x={TRIANGLE_CENTRE[0]}
@@ -44,4 +45,22 @@ export function Logo({ size, round, traced }: LogoProps) {
       )}
     </Svg>
   );
+}
+
+/**
+ * The circle's own stroke lit up from its start, in its drawing direction, as
+ * far as the hold has gone. Animates by itself, so only the trace redraws each frame.
+ */
+function HoldTrace({ heldSince }: { heldSince: Timestamp }) {
+  const [traced, setTraced] = useState(0);
+
+  useEffect(() => {
+    let frame = requestAnimationFrame(function advance() {
+      setTraced(holdProgress(Date.now() - heldSince));
+      frame = requestAnimationFrame(advance);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [heldSince]);
+
+  return traced > 0 ? <Path d={INKED_CIRCLE.inkUpTo(traced)} fill={INK} /> : null;
 }

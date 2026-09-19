@@ -1,3 +1,5 @@
+import type { Timestamp } from './sessionClock';
+
 /** How long the practitioner must hold anywhere on the screen to stop a session. */
 export const HOLD_TO_STOP_MS = 1200;
 
@@ -5,8 +7,8 @@ type ScreenGestureOptions = {
   isRunning: () => boolean;
   onStart: () => void;
   onStop: () => void;
-  /** Whether a hold to stop is under way: drives the hold trace. */
-  onHoldChange: (holding: boolean) => void;
+  /** When the hold to stop under way began, or null once it ends: drives the hold trace. */
+  onHoldChange: (heldSince: Timestamp | null) => void;
 };
 
 /** How far through the hold to stop, from 0 at press-in to 1 at `HOLD_TO_STOP_MS`. */
@@ -31,7 +33,7 @@ export function createScreenGesture({ isRunning, onStart, onStop, onHoldChange }
     if (holdTimer === undefined) return;
     clearTimeout(holdTimer);
     holdTimer = undefined;
-    onHoldChange(false);
+    onHoldChange(null);
   };
 
   return {
@@ -39,7 +41,7 @@ export function createScreenGesture({ isRunning, onStart, onStop, onHoldChange }
       endHold();
       pressBeganIdle = !isRunning();
       if (pressBeganIdle) return;
-      onHoldChange(true);
+      onHoldChange(Date.now());
       holdTimer = setTimeout(() => {
         endHold();
         // The session may have ended on its own mid-hold, e.g. on leaving the app.
@@ -51,7 +53,8 @@ export function createScreenGesture({ isRunning, onStart, onStop, onHoldChange }
       if (pressBeganIdle) onStart();
       pressBeganIdle = false;
     },
-    dispose() {
+    /** Drops the press under way, e.g. when the session ends on its own. */
+    cancel() {
       endHold();
       pressBeganIdle = false;
     },

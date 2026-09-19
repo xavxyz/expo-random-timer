@@ -13,14 +13,14 @@ const LOGO_SCALE = 1.02;
 export default function App() {
   const { snapshot, start, stop } = useSession();
   const { width } = useWindowDimensions();
-  const { pressHandlers, held } = useScreenGesture(snapshot != null, start, stop);
+  const { pressHandlers, heldSince } = useScreenGesture(snapshot != null, start, stop);
 
   return (
     // The whole screen is the control: there are no buttons.
     <Pressable style={styles.screen} {...pressHandlers}>
       {snapshot && <KeepAwake />}
       <View style={styles.centre}>
-        <Logo size={width * LOGO_SCALE} round={snapshot?.round ?? null} traced={held} />
+        <Logo size={width * LOGO_SCALE} round={snapshot?.round ?? null} heldSince={heldSince} />
       </View>
       {snapshot && <Text style={styles.elapsed}>{formatElapsed(snapshot.elapsedMs)}</Text>}
       <Text style={styles.hint}>{snapshot ? 'hold anywhere to stop' : 'tap to begin'}</Text>

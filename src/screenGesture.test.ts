@@ -104,28 +104,39 @@ describe('screen gesture while running', () => {
     // e.g. leaving the app mid-hold stops the session on its own.
     const state = { running: true };
     const onStop = jest.fn();
-    const gesture = createScreenGesture({ isRunning: () => state.running, onStart: jest.fn(), onStop, onHoldChange: jest.fn() });
+    const gesture = createScreenGesture({
+      isRunning: () => state.running,
+      onStart: jest.fn(),
+      onStop,
+      onHoldChange: jest.fn(),
+    });
     gesture.pressIn();
     state.running = false;
     jest.advanceTimersByTime(HOLD_TO_STOP_MS);
     expect(onStop).not.toHaveBeenCalled();
   });
 
-  it('abandons a pending hold when disposed', () => {
-    const { gesture, onStop } = setup(true);
+  it('drops a pending hold when cancelled, e.g. as the session ends on its own', () => {
+    const { gesture, onStart, onStop, onHoldChange } = setup(true);
     gesture.pressIn();
-    gesture.dispose();
+    gesture.cancel();
+    expect(onHoldChange).toHaveBeenLastCalledWith(null);
     jest.advanceTimersByTime(HOLD_TO_STOP_MS);
+    gesture.pressOut();
+    gesture.tap();
     expect(onStop).not.toHaveBeenCalled();
+    expect(onStart).not.toHaveBeenCalled();
   });
 
-  it('reports the hold from press-in until completion, for the hold trace', () => {
+  it('reports when the hold began, until it completes, for the hold trace', () => {
     const { gesture, onStop, onHoldChange } = setup(true);
+    const pressedAt = Date.now();
     gesture.pressIn();
-    expect(onHoldChange.mock.calls).toEqual([[true]]);
+    expect(onHoldChange.mock.calls).toEqual([[pressedAt]]);
+    // The trace goes before the session stops, so it never lingers on the idle screen.
     onHoldChange.mockImplementation(() => expect(onStop).not.toHaveBeenCalled());
     jest.advanceTimersByTime(HOLD_TO_STOP_MS);
-    expect(onHoldChange.mock.calls).toEqual([[true], [false]]);
+    expect(onHoldChange.mock.calls).toEqual([[pressedAt], [null]]);
     gesture.pressOut();
     expect(onHoldChange).toHaveBeenCalledTimes(2);
   });
@@ -135,7 +146,8 @@ describe('screen gesture while running', () => {
     gesture.pressIn();
     jest.advanceTimersByTime(HOLD_TO_STOP_MS / 2);
     gesture.pressOut();
-    expect(onHoldChange.mock.calls).toEqual([[true], [false]]);
+    expect(onHoldChange).toHaveBeenLastCalledWith(null);
+    expect(onHoldChange).toHaveBeenCalledTimes(2);
   });
 });
 
