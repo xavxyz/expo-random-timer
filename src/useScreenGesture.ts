@@ -16,8 +16,6 @@ export function useScreenGesture(running: boolean, start: () => void, stop: () =
       isRunning: () => latest.current.running,
       onStart: () => latest.current.start(),
       onStop: () => {
-        // The session may already have ended mid-hold, e.g. on leaving the app.
-        if (!latest.current.running) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         latest.current.stop();
       },
@@ -26,5 +24,5 @@ export function useScreenGesture(running: boolean, start: () => void, stop: () =
 
   useEffect(() => () => gesture.dispose(), [gesture]);
 
-  return { onPressIn: gesture.pressIn, onPressOut: gesture.pressOut };
+  return { onPressIn: gesture.pressIn, onPressOut: gesture.pressOut, onPress: gesture.tap };
 }

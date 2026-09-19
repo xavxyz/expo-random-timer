@@ -19,9 +19,18 @@ describe('screen gesture while idle', () => {
   it('starts a session when a tap is released', () => {
     const { gesture, onStart } = setup(false);
     gesture.pressIn();
-    expect(onStart).not.toHaveBeenCalled();
     gesture.pressOut();
+    expect(onStart).not.toHaveBeenCalled();
+    gesture.tap();
     expect(onStart).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start a session when the touch is cancelled rather than released', () => {
+    // e.g. pulling down Control Center: the press goes out without a tap.
+    const { gesture, onStart } = setup(false);
+    gesture.pressIn();
+    gesture.pressOut();
+    expect(onStart).not.toHaveBeenCalled();
   });
 
   it('starts a session even after a long press, and never stops it', () => {
@@ -29,6 +38,7 @@ describe('screen gesture while idle', () => {
     gesture.pressIn();
     jest.advanceTimersByTime(HOLD_TO_STOP_MS * 2);
     gesture.pressOut();
+    gesture.tap();
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStop).not.toHaveBeenCalled();
   });
@@ -40,6 +50,7 @@ describe('screen gesture while running', () => {
     gesture.pressIn();
     jest.advanceTimersByTime(100);
     gesture.pressOut();
+    gesture.tap();
     jest.advanceTimersByTime(HOLD_TO_STOP_MS);
     expect(onStart).not.toHaveBeenCalled();
     expect(onStop).not.toHaveBeenCalled();
@@ -59,6 +70,7 @@ describe('screen gesture while running', () => {
     gesture.pressIn();
     jest.advanceTimersByTime(HOLD_TO_STOP_MS);
     gesture.pressOut();
+    gesture.tap();
     expect(onStop).toHaveBeenCalledTimes(1);
     expect(onStart).not.toHaveBeenCalled();
   });
@@ -76,6 +88,17 @@ describe('screen gesture while running', () => {
     expect(onStop).not.toHaveBeenCalled();
     jest.advanceTimersByTime(1);
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not stop again when the session already ended during the hold', () => {
+    // e.g. leaving the app mid-hold stops the session on its own.
+    const state = { running: true };
+    const onStop = jest.fn();
+    const gesture = createScreenGesture({ isRunning: () => state.running, onStart: jest.fn(), onStop });
+    gesture.pressIn();
+    state.running = false;
+    jest.advanceTimersByTime(HOLD_TO_STOP_MS);
+    expect(onStop).not.toHaveBeenCalled();
   });
 
   it('abandons a pending hold when disposed', () => {
