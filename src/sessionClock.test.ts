@@ -1,3 +1,4 @@
+import { seededRandom } from './seededRandom';
 import { formatElapsed, startSession } from './sessionClock';
 
 const T0 = 1_700_000_000_000;
@@ -9,15 +10,6 @@ const highest = () => 0.9999999999999999;
 function sequence(...values: number[]) {
   let i = 0;
   return () => values[Math.min(i++, values.length - 1)];
-}
-
-// Park–Miller LCG: deterministic stand-in for Math.random.
-function seededRandom(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
 }
 
 describe('session clock', () => {
