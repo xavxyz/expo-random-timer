@@ -1,9 +1,21 @@
 export type Random = () => number;
 
+/** Wall-clock milliseconds since the epoch, as returned by `Date.now()`. */
+export type Timestamp = number;
+
 export type SessionSnapshot = {
   round: number;
   elapsedMs: number;
   boundaryCrossed: boolean;
+};
+
+export type Session = {
+  /**
+   * Moves the session to `now`. `boundaryCrossed` is true only on the first call
+   * that reaches a new round, so advancing to the same instant again reports
+   * the same round without re-reporting the boundary.
+   */
+  advanceTo(now: Timestamp): SessionSnapshot;
 };
 
 const MIN_ROUND_SECONDS = 180;
@@ -14,14 +26,14 @@ function drawRoundMs(random: Random): number {
   return (MIN_ROUND_SECONDS + Math.floor(random() * span)) * 1000;
 }
 
-export function startSession(startedAt: number, random: Random) {
+export function startSession(startedAt: Timestamp, random: Random): Session {
   // Elapsed time (ms) at which each round reached so far ends; grows lazily.
   const roundEnds: number[] = [];
   let lastReportedRound = 1;
 
   return {
-    query(now: number): SessionSnapshot {
-      const elapsedMs = now - startedAt;
+    advanceTo(now) {
+      const elapsedMs = Math.max(0, now - startedAt);
       let round = 1;
       for (;; round++) {
         if (roundEnds.length < round) {

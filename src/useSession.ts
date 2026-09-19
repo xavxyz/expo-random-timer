@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { startSession, type SessionSnapshot } from './sessionClock';
+import { startSession, type Session, type SessionSnapshot } from './sessionClock';
 
 const POLL_MS = 250;
-
-type Session = ReturnType<typeof startSession>;
 
 /** Runs a session against the wall clock. `snapshot` is null while idle. */
 export function useSession() {
@@ -14,7 +12,7 @@ export function useSession() {
     const now = Date.now();
     const next = startSession(now, Math.random);
     setSession(next);
-    setSnapshot(next.query(now));
+    setSnapshot(next.advanceTo(now));
   }, []);
 
   const stop = useCallback(() => {
@@ -24,7 +22,7 @@ export function useSession() {
 
   useEffect(() => {
     if (!session) return;
-    const poll = setInterval(() => setSnapshot(session.query(Date.now())), POLL_MS);
+    const poll = setInterval(() => setSnapshot(session.advanceTo(Date.now())), POLL_MS);
     return () => clearInterval(poll);
   }, [session]);
 

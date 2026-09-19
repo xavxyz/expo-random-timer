@@ -5,6 +5,12 @@ const lowest = () => 0;
 // Math.random() never returns 1; this is as high as it gets.
 const highest = () => 0.9999999999999999;
 
+// Returns the given values in order, then repeats the last one.
+function sequence(...values: number[]) {
+  let i = 0;
+  return () => values[Math.min(i++, values.length - 1)];
+}
+
 // Park–Miller LCG: deterministic stand-in for Math.random.
 function seededRandom(seed: number) {
   let s = seed;
@@ -17,34 +23,41 @@ function seededRandom(seed: number) {
 describe('session clock', () => {
   it('is in round 1 with no elapsed time at the start', () => {
     const session = startSession(T0, lowest);
-    expect(session.query(T0)).toEqual({ round: 1, elapsedMs: 0, boundaryCrossed: false });
+    expect(session.advanceTo(T0)).toEqual({ round: 1, elapsedMs: 0, boundaryCrossed: false });
   });
 
   it('lasts exactly 3:00 per round when the random source is at its lowest', () => {
     const session = startSession(T0, lowest);
-    expect(session.query(T0 + 179_999).round).toBe(1);
-    expect(session.query(T0 + 180_000).round).toBe(2);
+    expect(session.advanceTo(T0 + 179_999).round).toBe(1);
+    expect(session.advanceTo(T0 + 180_000).round).toBe(2);
   });
 
   it('lasts exactly 7:00 per round when the random source is at its highest', () => {
     const session = startSession(T0, highest);
-    expect(session.query(T0 + 419_999).round).toBe(1);
-    expect(session.query(T0 + 420_000).round).toBe(2);
+    expect(session.advanceTo(T0 + 419_999).round).toBe(1);
+    expect(session.advanceTo(T0 + 420_000).round).toBe(2);
+  });
+
+  it('changes round exactly on a later boundary', () => {
+    // 3:00 then 7:00, so round 3 begins at 10:00.
+    const session = startSession(T0, sequence(0, highest(), 0));
+    expect(session.advanceTo(T0 + 599_999).round).toBe(2);
+    expect(session.advanceTo(T0 + 600_000).round).toBe(3);
   });
 
   it('reports a boundary crossing exactly once', () => {
     const session = startSession(T0, lowest);
-    expect(session.query(T0 + 179_900).boundaryCrossed).toBe(false);
-    expect(session.query(T0 + 180_100).boundaryCrossed).toBe(true);
-    expect(session.query(T0 + 180_300).boundaryCrossed).toBe(false);
+    expect(session.advanceTo(T0 + 179_900).boundaryCrossed).toBe(false);
+    expect(session.advanceTo(T0 + 180_100).boundaryCrossed).toBe(true);
+    expect(session.advanceTo(T0 + 180_300).boundaryCrossed).toBe(false);
   });
 
   it('lands on the right round, reported once, after a jump across several boundaries', () => {
     const session = startSession(T0, lowest);
-    session.query(T0);
+    session.advanceTo(T0);
     // 10 × 3:00 rounds have ended at 30:00, so 30:05 is in round 11.
-    expect(session.query(T0 + 1_805_000)).toEqual({ round: 11, elapsedMs: 1_805_000, boundaryCrossed: true });
-    expect(session.query(T0 + 1_805_200).boundaryCrossed).toBe(false);
+    expect(session.advanceTo(T0 + 1_805_000)).toEqual({ round: 11, elapsedMs: 1_805_000, boundaryCrossed: true });
+    expect(session.advanceTo(T0 + 1_805_200).boundaryCrossed).toBe(false);
   });
 
   it('keeps every round a whole number of seconds between 3:00 and 7:00 over a long session', () => {
@@ -52,8 +65,8 @@ describe('session clock', () => {
     const boundaries: number[] = [0];
     let round = 1;
     for (let s = 1; s <= 3 * 3600; s++) {
-      const justBefore = session.query(T0 + s * 1000 - 1).round;
-      const onTheSecond = session.query(T0 + s * 1000).round;
+      const justBefore = session.advanceTo(T0 + s * 1000 - 1).round;
+      const onTheSecond = session.advanceTo(T0 + s * 1000).round;
       expect(justBefore).toBe(round);
       if (onTheSecond !== round) {
         expect(onTheSecond).toBe(round + 1);
@@ -70,10 +83,15 @@ describe('session clock', () => {
     expect(new Set(durations).size).toBeGreaterThan(1);
   });
 
-  it('gives the same answer when the same instant is queried twice', () => {
+  it('stays at the start if the wall clock moves back before it', () => {
+    const session = startSession(T0, lowest);
+    expect(session.advanceTo(T0 - 5_000)).toEqual({ round: 1, elapsedMs: 0, boundaryCrossed: false });
+  });
+
+  it('reports the same round without re-reporting the boundary when advanced to the same instant twice', () => {
     const session = startSession(T0, seededRandom(42));
-    const first = session.query(T0 + 3_600_000);
-    expect(session.query(T0 + 3_600_000)).toEqual({ ...first, boundaryCrossed: false });
+    const first = session.advanceTo(T0 + 3_600_000);
+    expect(session.advanceTo(T0 + 3_600_000)).toEqual({ ...first, boundaryCrossed: false });
   });
 });
 
