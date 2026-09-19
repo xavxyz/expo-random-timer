@@ -17,18 +17,19 @@ function sweptDegrees(points: Point[], [cx, cy]: Point) {
 
 const LOGO_CENTRE: Point = [50, 50];
 
+const first = (points: Point[]) => points[0];
+const last = (points: Point[]) => points[points.length - 1];
+
 // Which way the brush travels from the first point to the last, as seen on screen.
 function heading(points: Point[]) {
-  const [x0, y0] = points[0];
-  const [x1, y1] = points[points.length - 1];
+  const [x0, y0] = first(points);
+  const [x1, y1] = last(points);
   const dx = x1 - x0;
   const dy = y1 - y0;
   if (Math.abs(dy) < Math.abs(dx) / 4) return dx > 0 ? 'right' : 'left';
   return `${dy > 0 ? 'down' : 'up'}-${dx > 0 ? 'right' : 'left'}`;
 }
 
-const first = (points: Point[]) => points[0];
-const last = (points: Point[]) => points[points.length - 1];
 
 describe('logo circles', () => {
   it('are each one continuous brush path that runs past its own start', () => {

@@ -7,6 +7,10 @@ const PASSES = [...CIRCLE_STROKES, ...TRIANGLE_STROKES].flatMap((stroke) => trac
 
 const LOGO_OPACITY = 0.22;
 const ROUND_FONT_SIZE = 22;
+/** Height of the triangle's visual centre in the 100×100 drawing. */
+const TRIANGLE_CENTRE_Y = 54;
+/** Distance from the digits' baseline up to their visual centre, per unit of font size. */
+const DIGIT_HALF_HEIGHT = 0.36;
 
 type LogoProps = {
   /** Width and height on screen; the drawing scales as a vector, so it stays crisp. */
@@ -34,8 +38,7 @@ export function Logo({ size, round }: LogoProps) {
       {round != null && (
         <Text
           x={50}
-          // Baseline placed so the digits' visual centre sits near the triangle's centroid.
-          y={54 + ROUND_FONT_SIZE * 0.36}
+          y={TRIANGLE_CENTRE_Y + ROUND_FONT_SIZE * DIGIT_HALF_HEIGHT}
           fontSize={ROUND_FONT_SIZE}
           fontWeight="200"
           fill={INK}

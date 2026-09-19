@@ -4,6 +4,8 @@
  * triangle redraw and the hold trace follow the strokes as the brush drew them.
  */
 
+import { seededRandom } from '../seededRandom';
+
 export type Point = [number, number];
 
 /** A wobbly arc around `centre`; positive `sweepDeg` is clockwise on screen. */
@@ -90,17 +92,8 @@ export const TRIANGLE_STROKES: Stroke[] = [
   { shape: { kind: 'line', from: [18, 69], to: [78, 68.8], overshoot: [0.5, 0.5], bow: 0.6, seed: 43 }, width: 0.9 },
 ];
 
-// Park–Miller LCG: a deterministic source of wobble.
-function seeded(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return (s - 1) / 2147483646;
-  };
-}
-
 function traceArc({ centre: [cx, cy], radius, startDeg, sweepDeg, wobble, seed }: Arc): Point[] {
-  const random = seeded(seed);
+  const random = seededRandom(seed);
   const harmonics = [2, 3, 5].map((k) => ({ k, amp: (wobble * (0.4 + random())) / k, phase: random() * 2 * Math.PI }));
   const steps = Math.ceil(Math.abs(sweepDeg) / 3);
   const points: Point[] = [];
@@ -115,7 +108,7 @@ function traceArc({ centre: [cx, cy], radius, startDeg, sweepDeg, wobble, seed }
 }
 
 function traceLine({ from: [x1, y1], to: [x2, y2], overshoot: [before, after], bow, seed }: Line): Point[] {
-  const random = seeded(seed);
+  const random = seededRandom(seed);
   const length = Math.hypot(x2 - x1, y2 - y1);
   const [ux, uy] = [(x2 - x1) / length, (y2 - y1) / length];
   const [nx, ny] = [-uy, ux];
