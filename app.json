@@ -21,6 +21,16 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "backgroundColor": "#0E0E0E"
+    "backgroundColor": "#0E0E0E",
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ]
+    ]
   }
 }
