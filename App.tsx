@@ -4,6 +4,7 @@ import { KeepAwake } from './src/KeepAwake';
 import { Logo } from './src/logo/Logo';
 import { BACKGROUND, DIM_INK } from './src/palette';
 import { formatElapsed } from './src/sessionClock';
+import { useScreenGesture } from './src/useScreenGesture';
 import { useSession } from './src/useSession';
 
 // Slightly wider than the screen, so the circle bleeds past the edges.
@@ -12,20 +13,19 @@ const LOGO_SCALE = 1.02;
 export default function App() {
   const { snapshot, start, stop } = useSession();
   const { width } = useWindowDimensions();
+  const { pressHandlers, heldSince } = useScreenGesture(snapshot != null, start, stop);
 
   return (
-    <View style={styles.screen}>
+    // The whole screen is the control: there are no buttons.
+    <Pressable style={styles.screen} {...pressHandlers}>
       {snapshot && <KeepAwake />}
       <View style={styles.centre}>
-        <Logo size={width * LOGO_SCALE} round={snapshot?.round ?? null} />
+        <Logo size={width * LOGO_SCALE} round={snapshot?.round ?? null} heldSince={heldSince} />
       </View>
       {snapshot && <Text style={styles.elapsed}>{formatElapsed(snapshot.elapsedMs)}</Text>}
-      {/* Temporary until the whole-screen gesture (#4) replaces it. */}
-      <Pressable style={styles.control} onPress={snapshot ? stop : start} hitSlop={24}>
-        <Text style={styles.controlLabel}>{snapshot ? 'Stop' : 'Start'}</Text>
-      </Pressable>
+      <Text style={styles.hint}>{snapshot ? 'hold anywhere to stop' : 'tap to begin'}</Text>
       <StatusBar style="light" />
-    </View>
+    </Pressable>
   );
 }
 
@@ -50,17 +50,15 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 2,
   },
-  control: {
+  hint: {
     position: 'absolute',
     bottom: 60,
     alignSelf: 'center',
-  },
-  controlLabel: {
     color: DIM_INK,
     fontSize: 12,
     fontWeight: '300',
+    fontVariant: ['small-caps'],
     letterSpacing: 3,
-    textTransform: 'uppercase',
     opacity: 0.7,
   },
 });
