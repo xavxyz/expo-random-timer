@@ -20,14 +20,19 @@ export function useSession() {
   const [session, setSession] = useState<Session | null>(null);
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
 
+  // Marks the start of every round, round 1 included.
+  const signalRound = useCallback(() => {
+    ringBell();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [ringBell]);
+
   const start = useCallback(() => {
     const now = Date.now();
     const next = startSession(now, Math.random);
     setSession(next);
     setSnapshot(next.query(now));
-    ringBell();
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [ringBell]);
+    signalRound();
+  }, [signalRound]);
 
   const end = useCallback(() => {
     setSession(null);
@@ -45,10 +50,7 @@ export function useSession() {
     activateKeepAwakeAsync(KEEP_AWAKE_TAG);
     const poll = setInterval(() => {
       const next = session.query(Date.now());
-      if (next.boundaryCrossed) {
-        ringBell();
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
+      if (next.boundaryCrossed) signalRound();
       setSnapshot(next);
     }, POLL_MS);
     const appState = AppState.addEventListener('change', (state) => {
@@ -60,7 +62,7 @@ export function useSession() {
       appState.remove();
       deactivateKeepAwake(KEEP_AWAKE_TAG);
     };
-  }, [session, ringBell, end]);
+  }, [session, signalRound, end]);
 
   return { snapshot, start, stop };
 }

@@ -2,6 +2,7 @@
 // doubled triangle), generated from seeded noise so it renders identically
 // every time. Vector, so it stays crisp at any size.
 import Svg, { G, Path, Text as SvgText } from 'react-native-svg';
+import { INK } from './palette';
 
 type Point = [number, number];
 
@@ -88,38 +89,34 @@ const STROKES: [string, number][] = [
   [wobblyLine([22.5, 65.5], [19, 71], 45, 0.3, 0.3), 1.2], // tail at bottom-left
 ];
 
+const LOGO_OPACITY = 0.4;
+const ROUND_FONT_SIZE = 17;
+
 export type HandDrawnLogoProps = {
   size: number;
-  color?: string;
-  opacity?: number;
-  round?: number | null;
-  roundColor?: string;
-  roundFontSize?: number;
+  /** Shown inside the triangle; null leaves it empty. */
+  round: number | null;
 };
 
 export function HandDrawnLogo({
   size,
-  color = '#EDE8DF',
-  opacity = 0.4,
-  round = null,
-  roundColor = '#EDE8DF',
-  roundFontSize = 17,
+  round,
 }: HandDrawnLogoProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
-      <G opacity={opacity}>
+      <G opacity={LOGO_OPACITY}>
         {STROKES.map(([d, w], i) => (
-          <Path key={i} d={d} stroke={color} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <Path key={i} d={d} stroke={INK} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" fill="none" />
         ))}
       </G>
       {round != null && (
         <SvgText
           x={50}
           // baseline placed so the digits' visual centre sits near the triangle's centroid
-          y={54 + roundFontSize * 0.36}
-          fontSize={roundFontSize}
+          y={54 + ROUND_FONT_SIZE * 0.36}
+          fontSize={ROUND_FONT_SIZE}
           fontWeight="200"
-          fill={roundColor}
+          fill={INK}
           textAnchor="middle"
         >
           {String(round)}

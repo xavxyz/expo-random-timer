@@ -15,7 +15,11 @@ export default function App() {
       <HandDrawnLogo size={Math.min(width, 520) * 0.8} round={snapshot?.round ?? null} />
       <View style={styles.below}>
         {/* Kept in the layout while idle so Start and Hold to stop share a spot. */}
-        <Text style={[styles.elapsed, !snapshot && styles.hidden]}>
+        <Text
+          style={[styles.elapsed, !snapshot && styles.hidden]}
+          accessibilityElementsHidden={!snapshot}
+          importantForAccessibility={snapshot ? 'auto' : 'no-hide-descendants'}
+        >
           {formatElapsed(snapshot?.elapsedMs ?? 0)}
         </Text>
         {snapshot ? <HoldToStopButton onStop={stop} /> : <StartButton onPress={start} />}
