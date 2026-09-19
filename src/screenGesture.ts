@@ -5,7 +5,14 @@ type ScreenGestureOptions = {
   isRunning: () => boolean;
   onStart: () => void;
   onStop: () => void;
+  /** Whether a hold to stop is under way: drives the hold trace. */
+  onHoldChange: (holding: boolean) => void;
 };
+
+/** How far through the hold to stop, from 0 at press-in to 1 at `HOLD_TO_STOP_MS`. */
+export function holdProgress(heldMs: number): number {
+  return Math.min(1, Math.max(0, heldMs / HOLD_TO_STOP_MS));
+}
 
 /**
  * The whole screen is the control. While idle, a tap starts a session. While
@@ -16,33 +23,36 @@ type ScreenGestureOptions = {
  * never a touch the OS cancelled). A press belongs to the state it began in, so
  * releasing a completed hold doesn't start a new session.
  */
-export function createScreenGesture({ isRunning, onStart, onStop }: ScreenGestureOptions) {
+export function createScreenGesture({ isRunning, onStart, onStop, onHoldChange }: ScreenGestureOptions) {
   let pressBeganIdle = false;
   let holdTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const cancelHold = () => {
+  const endHold = () => {
+    if (holdTimer === undefined) return;
     clearTimeout(holdTimer);
     holdTimer = undefined;
+    onHoldChange(false);
   };
 
   return {
     pressIn() {
-      cancelHold();
+      endHold();
       pressBeganIdle = !isRunning();
       if (pressBeganIdle) return;
+      onHoldChange(true);
       holdTimer = setTimeout(() => {
-        holdTimer = undefined;
+        endHold();
         // The session may have ended on its own mid-hold, e.g. on leaving the app.
         if (isRunning()) onStop();
       }, HOLD_TO_STOP_MS);
     },
-    pressOut: cancelHold,
+    pressOut: endHold,
     tap() {
       if (pressBeganIdle) onStart();
       pressBeganIdle = false;
     },
     dispose() {
-      cancelHold();
+      endHold();
       pressBeganIdle = false;
     },
   };

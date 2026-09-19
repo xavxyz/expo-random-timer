@@ -1,4 +1,4 @@
-import { createScreenGesture, HOLD_TO_STOP_MS } from './screenGesture';
+import { createScreenGesture, holdProgress, HOLD_TO_STOP_MS } from './screenGesture';
 
 function setup(running: boolean) {
   const state = { running };
@@ -8,8 +8,9 @@ function setup(running: boolean) {
   const onStop = jest.fn(() => {
     state.running = false;
   });
-  const gesture = createScreenGesture({ isRunning: () => state.running, onStart, onStop });
-  return { gesture, onStart, onStop };
+  const onHoldChange = jest.fn();
+  const gesture = createScreenGesture({ isRunning: () => state.running, onStart, onStop, onHoldChange });
+  return { gesture, onStart, onStop, onHoldChange };
 }
 
 beforeEach(() => jest.useFakeTimers());
@@ -41,6 +42,15 @@ describe('screen gesture while idle', () => {
     gesture.tap();
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it('never holds', () => {
+    const { gesture, onHoldChange } = setup(false);
+    gesture.pressIn();
+    jest.advanceTimersByTime(HOLD_TO_STOP_MS);
+    gesture.pressOut();
+    gesture.tap();
+    expect(onHoldChange).not.toHaveBeenCalled();
   });
 });
 
@@ -94,7 +104,7 @@ describe('screen gesture while running', () => {
     // e.g. leaving the app mid-hold stops the session on its own.
     const state = { running: true };
     const onStop = jest.fn();
-    const gesture = createScreenGesture({ isRunning: () => state.running, onStart: jest.fn(), onStop });
+    const gesture = createScreenGesture({ isRunning: () => state.running, onStart: jest.fn(), onStop, onHoldChange: jest.fn() });
     gesture.pressIn();
     state.running = false;
     jest.advanceTimersByTime(HOLD_TO_STOP_MS);
@@ -107,5 +117,37 @@ describe('screen gesture while running', () => {
     gesture.dispose();
     jest.advanceTimersByTime(HOLD_TO_STOP_MS);
     expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it('reports the hold from press-in until completion, for the hold trace', () => {
+    const { gesture, onStop, onHoldChange } = setup(true);
+    gesture.pressIn();
+    expect(onHoldChange.mock.calls).toEqual([[true]]);
+    onHoldChange.mockImplementation(() => expect(onStop).not.toHaveBeenCalled());
+    jest.advanceTimersByTime(HOLD_TO_STOP_MS);
+    expect(onHoldChange.mock.calls).toEqual([[true], [false]]);
+    gesture.pressOut();
+    expect(onHoldChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports the hold ending when released early', () => {
+    const { gesture, onHoldChange } = setup(true);
+    gesture.pressIn();
+    jest.advanceTimersByTime(HOLD_TO_STOP_MS / 2);
+    gesture.pressOut();
+    expect(onHoldChange.mock.calls).toEqual([[true], [false]]);
+  });
+});
+
+describe('hold progress', () => {
+  it('runs from nothing at press-in to the full hold at HOLD_TO_STOP_MS', () => {
+    expect(holdProgress(0)).toBe(0);
+    expect(holdProgress(HOLD_TO_STOP_MS / 4)).toBeCloseTo(0.25);
+    expect(holdProgress(HOLD_TO_STOP_MS)).toBe(1);
+  });
+
+  it('stays within the hold', () => {
+    expect(holdProgress(-10)).toBe(0);
+    expect(holdProgress(HOLD_TO_STOP_MS * 2)).toBe(1);
   });
 });
