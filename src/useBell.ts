@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
+import { ringFromTop } from './bell';
 
 // Synthesised by scripts/synthesize-bell.mjs; swap in any recording.
 const BELL = require('../assets/bell.wav');
@@ -13,7 +14,6 @@ export function useBell() {
   const player = useAudioPlayer(BELL);
 
   return useCallback(() => {
-    player.seekTo(0);
-    player.play();
+    ringFromTop(player);
   }, [player]);
 }
