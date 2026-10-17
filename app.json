@@ -37,6 +37,12 @@
         "projectId": "41f980a3-7224-439c-bdf9-d9b88c9bd051"
       }
     },
-    "owner": "hmetaijifr-team"
+    "owner": "hmetaijifr-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/41f980a3-7224-439c-bdf9-d9b88c9bd051"
+    }
   }
 }
