@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Taiji Gong Random Timers
+# Unbounded Random 3–7 Minute Timer
 
 ## Agent skills
 

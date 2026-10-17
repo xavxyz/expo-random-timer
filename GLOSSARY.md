@@ -1,4 +1,4 @@
-# Taiji Gong Random Timers
+# Unbounded Random 3–7 Minute Timer
 
 A calm phone timer for Taiji / gong fu training. It rings at hidden, random intervals and shows only the round number.
 
