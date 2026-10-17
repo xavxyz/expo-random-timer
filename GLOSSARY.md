@@ -1,13 +1,13 @@
 # Taiji Gong Random Timers
 
-A calm phone timer for Taiji / gong fu training. It rings at hidden, random intervals and shows the school's brush-drawn mark.
+A calm phone timer for Taiji / gong fu training. It rings at hidden, random intervals and shows only the round number.
 
 ## Language
 
 ### The mark
 
 **Mark**:
-The school's hand-drawn emblem: one brush circle enclosing one brush triangle. The app's logo reproduces it.
+The school's hand-drawn emblem: one brush circle enclosing one brush triangle. The app no longer shows it on screen; its stroke data stays in `src/logo/`.
 _Avoid_: Doubled circle, doubled triangle, inner/outer triangle
 
 **Stroke**:
@@ -21,11 +21,7 @@ _Avoid_: Texture, scratch
 **Brush lift**:
 The moment between two strokes when the brush leaves the paper.
 
-### Animations
+### The session
 
-**Triangle redraw**:
-The triangle wiped and drawn again, stroke by stroke, at the start of every round.
-
-**Hold trace**:
-The circle's own stroke lighting up along its drawing direction while the practitioner holds to stop.
-_Avoid_: Progress ring, stop indicator
+**Hold to stop**:
+Holding anywhere on the screen until the session stops. Nothing on screen shows it: a haptic fires at its halfway point, and another as the stop lands.

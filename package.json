@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo-google-fonts/unbounded": "^0.4.1",
     "expo": "~57.0.24",
     "expo-audio": "~57.0.5",
+    "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-keep-awake": "~57.0.2",
     "expo-status-bar": "~57.0.1",

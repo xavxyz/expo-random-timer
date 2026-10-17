@@ -1,18 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { createScreenGesture } from './screenGesture';
-import type { Timestamp } from './sessionClock';
 
 /**
- * Press handlers for the whole screen: tap to start, hold to stop. Completing
- * the hold plays a firm haptic, and no bell. `heldSince` is when the hold to
- * stop under way began, or null when there's none.
+ * Press handlers for the whole screen: tap to start, hold to stop. Nothing on
+ * screen shows the hold: a medium haptic marks its halfway point (unlike the
+ * light one of a round start), and a firm one its completion, with no bell.
  */
 export function useScreenGesture(running: boolean, start: () => void, stop: () => void) {
   // Read at press time, so the gesture always sees the current session.
   const latest = useRef({ running, start, stop });
   latest.current = { running, start, stop };
-  const [heldSince, setHeldSince] = useState<Timestamp | null>(null);
 
   const [gesture] = useState(() =>
     createScreenGesture({
@@ -22,7 +20,7 @@ export function useScreenGesture(running: boolean, start: () => void, stop: () =
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         latest.current.stop();
       },
-      onHoldChange: setHeldSince,
+      onHoldHalfway: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium),
     }),
   );
 
@@ -33,8 +31,5 @@ export function useScreenGesture(running: boolean, start: () => void, stop: () =
 
   useEffect(() => () => gesture.cancel(), [gesture]);
 
-  return {
-    pressHandlers: { onPressIn: gesture.pressIn, onPressOut: gesture.pressOut, onPress: gesture.tap },
-    heldSince,
-  };
+  return { onPressIn: gesture.pressIn, onPressOut: gesture.pressOut, onPress: gesture.tap };
 }
