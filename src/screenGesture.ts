@@ -1,5 +1,3 @@
-import type { Timestamp } from './sessionClock';
-
 /** How long the practitioner must hold anywhere on the screen to stop a session. */
 export const HOLD_TO_STOP_MS = 1200;
 
@@ -7,14 +5,9 @@ type ScreenGestureOptions = {
   isRunning: () => boolean;
   onStart: () => void;
   onStop: () => void;
-  /** When the hold to stop under way began, or null once it ends: drives the hold trace. */
-  onHoldChange: (heldSince: Timestamp | null) => void;
+  /** Once per hold to stop, when it reaches halfway: the hold's only feedback. */
+  onHoldHalfway: () => void;
 };
-
-/** How far through the hold to stop, from 0 at press-in to 1 at `HOLD_TO_STOP_MS`. */
-export function holdProgress(heldMs: number): number {
-  return Math.min(1, Math.max(0, heldMs / HOLD_TO_STOP_MS));
-}
 
 /**
  * The whole screen is the control. While idle, a tap starts a session. While
@@ -25,15 +18,16 @@ export function holdProgress(heldMs: number): number {
  * never a touch the OS cancelled). A press belongs to the state it began in, so
  * releasing a completed hold doesn't start a new session.
  */
-export function createScreenGesture({ isRunning, onStart, onStop, onHoldChange }: ScreenGestureOptions) {
+export function createScreenGesture({ isRunning, onStart, onStop, onHoldHalfway }: ScreenGestureOptions) {
   let pressBeganIdle = false;
+  let halfwayTimer: ReturnType<typeof setTimeout> | undefined;
   let holdTimer: ReturnType<typeof setTimeout> | undefined;
 
   const endHold = () => {
-    if (holdTimer === undefined) return;
+    clearTimeout(halfwayTimer);
     clearTimeout(holdTimer);
+    halfwayTimer = undefined;
     holdTimer = undefined;
-    onHoldChange(null);
   };
 
   return {
@@ -41,7 +35,7 @@ export function createScreenGesture({ isRunning, onStart, onStop, onHoldChange }
       endHold();
       pressBeganIdle = !isRunning();
       if (pressBeganIdle) return;
-      onHoldChange(Date.now());
+      halfwayTimer = setTimeout(onHoldHalfway, HOLD_TO_STOP_MS / 2);
       holdTimer = setTimeout(() => {
         endHold();
         // The session may have ended on its own mid-hold, e.g. on leaving the app.

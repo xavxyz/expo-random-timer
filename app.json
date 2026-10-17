@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Taiji Gong Random Timers",
-    "slug": "expo-random-timer",
+    "name": "Unbounded Random 3–7 Minute Timer",
+    "slug": "unbounded-random-3-7-minute-timer",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -31,6 +31,18 @@
           "enableBackgroundPlayback": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "41f980a3-7224-439c-bdf9-d9b88c9bd051"
+      }
+    },
+    "owner": "hmetaijifr-team",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/41f980a3-7224-439c-bdf9-d9b88c9bd051"
+    }
   }
 }
