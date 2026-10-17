@@ -1,5 +1,11 @@
 {
   "enabledPlugins": {
     "expo@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npx eas-cli@latest update:*)",
+      "Bash(npx -y eas-cli@latest update:*)"
+    ]
   }
 }
