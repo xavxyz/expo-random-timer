@@ -30,7 +30,10 @@
           "recordAudioAndroid": false,
           "enableBackgroundPlayback": false
         }
-      ]
+      ],
+      "expo-font",
+      "expo-status-bar",
+      "expo-asset"
     ],
     "extra": {
       "eas": {
@@ -38,7 +41,7 @@
       }
     },
     "owner": "hmetaijifr-team",
-    "runtimeVersion": "exposdk:57.0.0",
+    "runtimeVersion": "exposdk:58.0.0",
     "updates": {
       "url": "https://u.expo.dev/41f980a3-7224-439c-bdf9-d9b88c9bd051"
     }
